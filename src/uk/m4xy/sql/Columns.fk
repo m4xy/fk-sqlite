@@ -1,0 +1,99 @@
+import fckt.monads.Validation
+import fckt.monads.Validated
+import fckt.text.Bytes
+
+// Reading a row into a value, a column at a time. A block of columns reads each one, and finds every
+// problem, not just the first:
+//
+//   users: Column<User> = Columns {
+//     id by int("id")
+//     name by text("name")
+//     email by nullable(text("email"))
+//     User(id, name, email)
+//   }
+module Columns : Applicative {
+  type M<A> = Column<A>
+
+  pure<A>(x: A): Column<A> = Column([], _ -> Valid(x))
+
+  map<A, B>(m: Column<A>, f: (A) -> B): Column<B> = Column(m.names, row -> Validated.map(m.read(row), f))
+
+  product<A, B>(ma: Column<A>, mb: Column<B>): Column<(A, B)> =
+    Column(ma.names + mb.names, row -> Validated.product(ma.read(row), mb.read(row)))
+
+  // ---- Columns of each type ----
+
+  // An integer.
+  int(name: String): Column<Int> = column(name, "an integer") { value ->
+    when (value) {
+      Integer(n) -> Some(n)
+      _ -> None
+    }
+  }
+
+  // A real number; an integer is one too.
+  real(name: String): Column<Float> = column(name, "a real number") { value ->
+    when (value) {
+      Real(x) -> Some(x)
+      Integer(n) -> Some(n.toFloat())
+      _ -> None
+    }
+  }
+
+  // Text.
+  text(name: String): Column<String> = column(name, "text") { value ->
+    when (value) {
+      Text(s) -> Some(s)
+      _ -> None
+    }
+  }
+
+  // Bytes, as a blob is.
+  blob(name: String): Column<Bytes> = column(name, "a blob") { value ->
+    when (value) {
+      Blob(b) -> Some(b)
+      _ -> None
+    }
+  }
+
+  // A boolean, which SQLite holds as the integer 0 or 1.
+  boolean(name: String): Column<Boolean> = column(name, "0 or 1") { value ->
+    when (value) {
+      Integer(0) -> Some(false)
+      Integer(1) -> Some(true)
+      _ -> None
+    }
+  }
+
+  // The column's value, as it is.
+  value(name: String): Column<Value> = column(name, "a value") { Some(it) }
+
+  // What the column reads, or None if each column it reads is null.
+  nullable<A>(column: Column<A>): Column<Option<A>> = Column(column.names, row ->
+    if (column.names.all { name -> row.get(name) == Some(Null) }) Valid(None)
+    else Validated.map(column.read(row), a -> Some(a)))
+
+  // ---- Rows ----
+
+  // The value of the column of that name.
+  Row.get(name: String): Option<Value> = this.columns.zip(this.values).find { column, _ -> column == name }.map { _, value -> value }
+
+  // A column read as what the function makes of its value, if anything: described, as a problem says,
+  // as what it should be.
+  private column<A>(name: String, described: String, read: (Value) -> Option<A>): Column<A> = Column([name], row ->
+    when (row.get(name)) {
+      Some(value) -> when (read(value)) {
+        Some(a) -> Valid(a)
+        None -> Invalid(["column $name is ${kindOf(value)}, not $described"])
+      }
+      None -> Invalid(["there's no column $name"])
+    })
+
+  private kindOf(value: Value): String = when (value) {
+    Null -> "null"
+    Integer(n) -> "the integer $n"
+    Real(x) -> "the real number $x"
+    Text(s) -> "the text '$s'"
+    Blob(_) -> "a blob"
+  }
+}

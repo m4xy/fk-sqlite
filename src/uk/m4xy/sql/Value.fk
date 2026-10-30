@@ -1,0 +1,10 @@
+import fckt.text.Bytes
+
+// A value SQLite holds: in a column of a row, or given to a statement for a ? in it.
+type Value {
+  Null,
+  Integer(value: Int),
+  Real(value: Float),
+  Text(value: String),
+  Blob(value: Bytes),
+}

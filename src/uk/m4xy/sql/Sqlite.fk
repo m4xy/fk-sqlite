@@ -1,0 +1,70 @@
+import fckt.text.Bytes
+
+// SQLite itself, through the OCaml package sqlite3, which main handles @SqlEngine with.
+module Sqlite : SqlEngine {
+  // The binding's message says what it was doing, as SQLite's own others don't.
+  open(path: String): Result<Connection, String> = openDatabase(path).mapError { it.removePrefix("error opening database: ") }
+
+  run(connection: Connection, statement: Statement): Result<Executed, SqlError> =
+    when (execute(connection, statement.sql, statement.parameters.map { datumOf(it) })) {
+      Ok(result) -> {
+        (columns, rows, changes, lastInsertId) = result
+        Ok(Executed(rows.map { values -> Row(columns, values.map { valueOf(it) }) }, changes, lastInsertId))
+      }
+      Error(message) -> Error(SqlError(message, statement.sql))
+    }
+
+  runScript(connection: Connection, sql: String): Result<Unit, SqlError> =
+    executeScript(connection, sql).mapError { message -> SqlError(message, sql) }
+
+  close(connection: Connection): Unit = closeDatabase(connection)
+
+  // ---- Values, as SQLite has them ----
+
+  private datumOf(value: Value): Datum = when (value) {
+    Null -> nullDatum(Unit)
+    Integer(n) -> integerDatum(n)
+    Real(x) -> realDatum(x)
+    Text(s) -> textDatum(s)
+    Blob(b) -> blobDatum(b)
+  }
+
+  private valueOf(datum: Datum): Value = when (kindOf(datum)) {
+    1 -> Integer(integerIn(datum))
+    2 -> Real(realIn(datum))
+    3 -> Text(textIn(datum))
+    4 -> Blob(blobIn(datum))
+    _ -> Null
+  }
+
+  private external type Datum = "Sqlite3.Data.t"
+
+  private external nullDatum(u: Unit): Datum = "(fun () -> Sqlite3.Data.NULL) u"
+  private external integerDatum(n: Int): Datum = "(fun n -> Sqlite3.Data.INT (Int64.of_int n)) n"
+  private external realDatum(x: Float): Datum = "Sqlite3.Data.FLOAT x"
+  private external textDatum(s: String): Datum = "Sqlite3.Data.TEXT s"
+  private external blobDatum(b: Bytes): Datum = "Sqlite3.Data.BLOB b"
+
+  // 0 for null, 1 an integer, 2 a real, 3 text and 4 a blob.
+  private external kindOf(d: Datum): Int =
+    "(function Sqlite3.Data.INT _ -> 1 | Sqlite3.Data.FLOAT _ -> 2 | Sqlite3.Data.TEXT _ -> 3 | Sqlite3.Data.BLOB _ -> 4 | _ -> 0) d"
+  private external integerIn(d: Datum): Int = "(function Sqlite3.Data.INT n -> Int64.to_int n | _ -> 0) d"
+  private external realIn(d: Datum): Float = "(function Sqlite3.Data.FLOAT x -> x | _ -> 0.0) d"
+  private external textIn(d: Datum): String = "(function Sqlite3.Data.TEXT s -> s | _ -> \"\") d"
+  private external blobIn(d: Datum): Bytes = "(function Sqlite3.Data.BLOB b -> b | _ -> \"\") d"
+
+  // ---- SQLite's calls ----
+
+  private external openDatabase(path: String): Result<Connection, String> =
+    "(fun p -> try Ok (Sqlite3.db_open p) with Sqlite3.Error e -> Error e) path"
+
+  private external closeDatabase(connection: Connection): Unit = "(fun db -> ignore (Sqlite3.db_close db)) connection"
+
+  // The statement's columns, its rows, how many rows it changed, and the last row ID inserted; or
+  // why it couldn't be run. The statement is finalized whatever happens.
+  private external execute(connection: Connection, sql: String, parameters: List<Datum>): Result<(List<String>, List<List<Datum>>, Int, Int), String> =
+    "(fun db sql params -> match Sqlite3.prepare db sql with exception (Sqlite3.Error _ | Sqlite3.SqliteError _) -> Error (Sqlite3.errmsg db) | stmt -> let finish r = ignore (Sqlite3.finalize stmt); r in if Sqlite3.bind_values stmt params <> Sqlite3.Rc.OK then finish (Error (Sqlite3.errmsg db)) else let names = List.init (Sqlite3.column_count stmt) (Sqlite3.column_name stmt) in let rec rows acc = match Sqlite3.step stmt with Sqlite3.Rc.ROW -> rows (Array.to_list (Sqlite3.row_data stmt) :: acc) | Sqlite3.Rc.DONE -> Ok (List.rev acc) | _ -> Error (Sqlite3.errmsg db) in finish (match rows [] with Ok rs -> Ok (names, rs, Sqlite3.changes db, Int64.to_int (Sqlite3.last_insert_rowid db)) | Error e -> Error e)) connection sql parameters"
+
+  private external executeScript(connection: Connection, sql: String): Result<Unit, String> =
+    "(fun db sql -> match Sqlite3.exec db sql with Sqlite3.Rc.OK -> Ok () | _ -> Error (Sqlite3.errmsg db) | exception (Sqlite3.Error e | Sqlite3.SqliteError e) -> Error e) connection sql"
+}

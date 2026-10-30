@@ -1,0 +1,80 @@
+import fckt.effects.Fail
+import fckt.effects.Failure.attempt
+import fckt.monads.Validation
+
+// Opening a database, and running SQL on it. What SQLite can't do, and a row that can't be read as
+// asked, fails, with why and the SQL it was.
+//
+//   Databases.opening("shop.db") {
+//     script("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+//     id = insert("INSERT INTO users (name) VALUES (?)", [Text("Ada")])
+//     queryAs(users, "SELECT id, name FROM users WHERE id = ?", [Integer(id)])
+//   }
+module Databases {
+  // Runs body with the database in the file at path open, made if it isn't there, or ":memory:" for
+  // one in memory; and closes it after, even if body fails.
+  @SqlEngine @Fail opening<A>(path: String, body: @Database () -> A): A = when (open(path)) {
+    Ok(connection) -> {
+      result = attempt {
+        Database(tryRun = statement -> run(connection, statement), tryRunScript = sql -> runScript(connection, sql)) { body() }
+      }
+      close(connection)
+      when (result) {
+        Ok(value) -> value
+        Error(reason) -> fail(reason)
+      }
+    }
+    Error(why) -> fail("can't open the database $path: $why")
+  }
+
+  // The rows the query gives.
+  @Database @Fail query(sql: String, parameters: List<Value> = []): List<Row> = ran(Statement(sql, parameters)).rows
+
+  // Each row the query gives, read by the columns.
+  @Database @Fail queryAs<A>(columns: Column<A>, sql: String, parameters: List<Value> = []): List<A> =
+    query(sql, parameters).map { row -> readRow(columns, row, sql) }
+
+  // The first row the query gives, read by the columns, if it gives any.
+  @Database @Fail queryOne<A>(columns: Column<A>, sql: String, parameters: List<Value> = []): Option<A> =
+    query(sql, parameters).firstOrNone().map { row -> readRow(columns, row, sql) }
+
+  // Runs a statement that changes rows, and gives how many it changed.
+  @Database @Fail execute(sql: String, parameters: List<Value> = []): Int = ran(Statement(sql, parameters)).changes
+
+  // Runs an insert, and gives the row ID of the row it inserted.
+  @Database @Fail insert(sql: String, parameters: List<Value> = []): Int = ran(Statement(sql, parameters)).lastInsertId
+
+  // Runs every statement in the SQL, one after another, with no values: a schema, say.
+  @Database @Fail script(sql: String): Unit = when (tryRunScript(sql)) {
+    Ok(_) -> Unit
+    Error(e) -> fail(described(e))
+  }
+
+  // Runs body in a transaction: what it does is kept if it finishes, and undone if it fails.
+  @Database @Fail transaction<A>(body: () -> A): A = {
+    script("BEGIN")
+    result = attempt { body() }
+    when (result) {
+      Ok(value) -> {
+        script("COMMIT")
+        value
+      }
+      Error(reason) -> {
+        script("ROLLBACK")
+        fail(reason)
+      }
+    }
+  }
+
+  @Database @Fail private ran(statement: Statement): Executed = when (tryRun(statement)) {
+    Ok(executed) -> executed
+    Error(e) -> fail(described(e))
+  }
+
+  @Fail private readRow<A>(columns: Column<A>, row: Row, sql: String): A = when (columns.read(row)) {
+    Valid(value) -> value
+    Invalid(problems) -> fail("${problems.joinToString("; ")}, reading a row of: $sql")
+  }
+
+  private described(e: SqlError): String = "${e.message}, in: ${e.sql}"
+}

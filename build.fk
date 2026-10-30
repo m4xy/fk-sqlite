@@ -1,0 +1,13 @@
+// fk-sqlite: SQLite databases for fckt, queried through an effect, their rows read into typed values.
+// kiln publishLocal publishes it, for projects to use as library("uk.m4xy:fk-sqlite:0.1.0").
+import uk.m4xy.kiln.fckt.*
+import uk.m4xy.fktests.kiln.*
+
+project = Project(name = "fk-sqlite", group = "uk.m4xy", version = "0.1.0")
+
+// SQLite itself is the OCaml package sqlite3's: opam install sqlite3.
+module WithSqlite : FcktConfiguration {
+  layout(): FcktLayout = FcktLayout(ocamlPackages = ["sqlite3"])
+}
+
+plugins = [Fckt(WithSqlite), FkTests(StandardTests, WithSqlite)]

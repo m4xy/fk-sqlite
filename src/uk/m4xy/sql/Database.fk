@@ -1,0 +1,9 @@
+// A database to run SQL on: Databases.opening(path) { ... } opens one and handles it, and query,
+// execute, insert and transaction in Databases run SQL through it. A function that runs SQL says so
+// by being @Database, and which database is up to whoever handles it.
+effect Database {
+  // Runs one statement.
+  tryRun(statement: Statement): Result<Executed, SqlError>
+  // Runs every statement in the SQL, one after another, with no values.
+  tryRunScript(sql: String): Result<Unit, SqlError>
+}

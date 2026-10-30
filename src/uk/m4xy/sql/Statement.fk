@@ -1,0 +1,3 @@
+// SQL to run, with a value for each ? in it, in order. Values are never written into the SQL, so
+// what they hold can't change what it does.
+type Statement(sql: String, parameters: List<Value>)
