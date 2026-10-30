@@ -7,7 +7,10 @@ module Columns : Applicative {
 
   pure<A>(x: A): Column<A> = Column([], _ -> Valid(x))
 
-  map<A, B>(m: Column<A>, f: (A) -> B): Column<B> = Column(m.names, row -> Validated.map(m.read(row), f))
+  map<A, B>(
+    m: Column<A>,
+    f: (A) -> B,
+  ): Column<B> = Column(m.names, row -> Validated.map(m.read(row), f))
 
   product<A, B>(ma: Column<A>, mb: Column<B>): Column<(A, B)> =
     Column(ma.names + mb.names, row -> Validated.product(ma.read(row), mb.read(row)))
@@ -55,9 +58,17 @@ module Columns : Applicative {
     if (column.names.all { name -> row.get(name) == Some(Null) }) Valid(None)
     else Validated.map(column.read(row), a -> Some(a)))
 
-  Row.get(name: String): Option<Value> = this.columns.zip(this.values).find { column, _ -> column == name }.map { _, value -> value }
+  Row.get(
+    name: String,
+  ): Option<Value> = this.columns.zip(
+    this.values,
+  ).find { column, _ -> column == name }.map { _, value -> value }
 
-  private column<A>(name: String, described: String, read: (Value) -> Option<A>): Column<A> = Column([name], row ->
+  private column<A>(
+    name: String,
+    described: String,
+    read: (Value) -> Option<A>,
+  ): Column<A> = Column([name], row ->
     when (row.get(name)) {
       Some(value) -> when (read(value)) {
         Some(a) -> Valid(a)

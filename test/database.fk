@@ -117,7 +117,10 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
   attempt { Databases.opening("/no/such/folder/x.db") { query("SELECT 1") } },
 )
 
-@Database @Fail rename(id: Int, name: String): Int = execute("UPDATE users SET name = ? WHERE id = ?", [Text(name), Integer(id)])
+@Database @Fail rename(
+  id: Int,
+  name: String,
+): Int = execute("UPDATE users SET name = ? WHERE id = ?", [Text(name), Integer(id)])
 
 @Test @Fail aDatabaseCanBeAnythingThatHandlesIt() = {
   ran: Mutable<List<Statement>> = Mutable([])

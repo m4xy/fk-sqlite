@@ -6,7 +6,10 @@ module Databases {
   @SqlEngine @Fail opening<A>(path: String, body: @Database () -> A): A = when (open(path)) {
     Ok(connection) -> {
       result = attempt {
-        Database(tryRun = statement -> run(connection, statement), tryRunScript = sql -> runScript(connection, sql)) { body() }
+        Database(
+          tryRun = statement -> run(connection, statement),
+          tryRunScript = sql -> runScript(connection, sql),
+        ) { body() }
       }
       close(connection)
       when (result) {
@@ -17,17 +20,34 @@ module Databases {
     Error(why) -> fail("can't open the database $path: $why")
   }
 
-  @Database @Fail query(sql: String, parameters: List<Value> = []): List<Row> = ran(Statement(sql, parameters)).rows
+  @Database @Fail query(
+    sql: String,
+    parameters: List<Value> = [],
+  ): List<Row> = ran(Statement(sql, parameters)).rows
 
-  @Database @Fail queryAs<A>(columns: Column<A>, sql: String, parameters: List<Value> = []): List<A> =
+  @Database @Fail queryAs<A>(
+    columns: Column<A>,
+    sql: String,
+    parameters: List<Value> = [],
+  ): List<A> =
     query(sql, parameters).map { row -> readRow(columns, row, sql) }
 
-  @Database @Fail queryOne<A>(columns: Column<A>, sql: String, parameters: List<Value> = []): Option<A> =
+  @Database @Fail queryOne<A>(
+    columns: Column<A>,
+    sql: String,
+    parameters: List<Value> = [],
+  ): Option<A> =
     query(sql, parameters).firstOrNone().map { row -> readRow(columns, row, sql) }
 
-  @Database @Fail execute(sql: String, parameters: List<Value> = []): Int = ran(Statement(sql, parameters)).changes
+  @Database @Fail execute(
+    sql: String,
+    parameters: List<Value> = [],
+  ): Int = ran(Statement(sql, parameters)).changes
 
-  @Database @Fail insert(sql: String, parameters: List<Value> = []): Int = ran(Statement(sql, parameters)).lastInsertId
+  @Database @Fail insert(
+    sql: String,
+    parameters: List<Value> = [],
+  ): Int = ran(Statement(sql, parameters)).lastInsertId
 
   @Database @Fail script(sql: String): Unit = when (tryRunScript(sql)) {
     Ok(_) -> Unit
@@ -54,7 +74,11 @@ module Databases {
     Error(e) -> fail(described(e))
   }
 
-  @Fail private readRow<A>(columns: Column<A>, row: Row, sql: String): A = when (columns.read(row)) {
+  @Fail private readRow<A>(
+    columns: Column<A>,
+    row: Row,
+    sql: String,
+  ): A = when (columns.read(row)) {
     Valid(value) -> value
     Invalid(problems) -> fail("${problems.joinToString("; ")}, reading a row of: $sql")
   }

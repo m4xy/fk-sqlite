@@ -1,7 +1,11 @@
 import fckt.text.Bytes
 
 module Sqlite : SqlEngine {
-  open(path: String): Result<Connection, String> = openDatabase(path).mapError { it.removePrefix("error opening database: ") }
+  open(
+    path: String,
+  ): Result<Connection, String> = openDatabase(
+    path,
+  ).mapError { it.removePrefix("error opening database: ") }
 
   run(connection: Connection, statement: Statement): Result<Executed, SqlError> =
     when (execute(connection, statement.sql, statement.parameters.map { datumOf(it) })) {
@@ -63,7 +67,11 @@ module Sqlite : SqlEngine {
     connection: Connection,
   ): Unit = "(fun db -> ignore (Sqlite3.db_close db)) connection"
 
-  private external execute(connection: Connection, sql: String, parameters: List<Datum>): Result<(List<String>, List<List<Datum>>, Int, Int), String> =
+  private external execute(
+    connection: Connection,
+    sql: String,
+    parameters: List<Datum>,
+  ): Result<(List<String>, List<List<Datum>>, Int, Int), String> =
     "(fun db sql params -> match Sqlite3.prepare db sql with exception (Sqlite3.Error _ | Sqlite3.SqliteError _) -> Error (Sqlite3.errmsg db) | stmt -> let finish r = ignore (Sqlite3.finalize stmt); r in if Sqlite3.bind_values stmt params <> Sqlite3.Rc.OK then finish (Error (Sqlite3.errmsg db)) else let names = List.init (Sqlite3.column_count stmt) (Sqlite3.column_name stmt) in let rec rows acc = match Sqlite3.step stmt with Sqlite3.Rc.ROW -> rows (Array.to_list (Sqlite3.row_data stmt) :: acc) | Sqlite3.Rc.DONE -> Ok (List.rev acc) | _ -> Error (Sqlite3.errmsg db) in finish (match rows [] with Ok rs -> Ok (names, rs, Sqlite3.changes db, Int64.to_int (Sqlite3.last_insert_rowid db)) | Error e -> Error e)) connection sql parameters"
 
   private external executeScript(connection: Connection, sql: String): Result<Unit, String> =
