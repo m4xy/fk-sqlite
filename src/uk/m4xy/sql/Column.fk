@@ -1,5 +1,3 @@
 import fckt.monads.Validation
 
-// How a value is read from a row, or several, and why it can't be: what Columns' functions make, and
-// a block of them puts together. Its names are the columns it reads.
 type Column<A>(names: List<String>, read: (Row) -> Validation<A, String>)

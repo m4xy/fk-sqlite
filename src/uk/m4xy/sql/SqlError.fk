@@ -1,2 +1,1 @@
-// Why SQLite couldn't run a statement, and the SQL it was.
 type SqlError(message: String, sql: String)

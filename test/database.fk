@@ -7,8 +7,6 @@ import fckt.effects.Failure.attempt
 import fckt.text.Encodings.*
 import fckt.values.Mutable
 
-// Running SQL on a database in memory, and reading what it gives.
-
 type User(id: Int, name: String, email: Option<String>, admin: Boolean)
 
 users: Column<User> = Columns {
@@ -21,7 +19,6 @@ users: Column<User> = Columns {
 
 schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT, admin INTEGER NOT NULL DEFAULT 0);"
 
-// Runs body on a new database in memory, with the users table made.
 @SqlEngine @Fail withUsers<A>(body: @Database () -> A): A = Databases.opening(":memory:") {
   script(schema)
   body()
@@ -98,8 +95,6 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
   attempt { Databases.opening("/no/such/folder/x.db") { query("SELECT 1") } },
 )
 
-// Code that runs SQL is @Database, so a test can give it a database of its own: here, one that
-// keeps what it's asked to run, and gives no rows.
 @Database @Fail rename(id: Int, name: String): Int = execute("UPDATE users SET name = ? WHERE id = ?", [Text(name), Integer(id)])
 
 @Test @Fail aDatabaseCanBeAnythingThatHandlesIt() = {

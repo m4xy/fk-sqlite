@@ -1,3 +1,1 @@
-// What running a statement came to: the rows it gave, if it's a query; how many rows it changed, if
-// it inserts, updates or deletes; and the row ID of the last row inserted on its connection.
 type Executed(rows: List<Row>, changes: Int, lastInsertId: Int)

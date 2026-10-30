@@ -1,2 +1,1 @@
-// A database SQLite has open, for SqlEngine to run statements on.
 external type Connection = "Sqlite3.db"

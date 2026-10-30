@@ -1,2 +1,1 @@
-// A row a query gives: each column's name, and its value, in the order the query has them.
 type Row(columns: List<String>, values: List<Value>)

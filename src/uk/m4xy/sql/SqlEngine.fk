@@ -1,12 +1,6 @@
-// What runs SQL: opening a database, running statements on it, and closing it. Main handles it with
-// Sqlite; Databases.opening uses it, and gives what it opens to @Database.
 @HandledBy(Sqlite) effect SqlEngine {
-  // The database in the file at path, made if it isn't there; ":memory:" is one in memory, gone
-  // when it's closed.
   open(path: String): Result<Connection, String>
-  // Runs one statement.
   run(connection: Connection, statement: Statement): Result<Executed, SqlError>
-  // Runs every statement in the SQL, one after another, with no values: a schema, say.
   runScript(connection: Connection, sql: String): Result<Unit, SqlError>
   close(connection: Connection): Unit
 }

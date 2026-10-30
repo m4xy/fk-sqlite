@@ -2,15 +2,6 @@ import fckt.monads.Validation
 import fckt.monads.Validated
 import fckt.text.Bytes
 
-// Reading a row into a value, a column at a time. A block of columns reads each one, and finds every
-// problem, not just the first:
-//
-//   users: Column<User> = Columns {
-//     id by int("id")
-//     name by text("name")
-//     email by nullable(text("email"))
-//     User(id, name, email)
-//   }
 module Columns : Applicative {
   type M<A> = Column<A>
 
@@ -21,9 +12,6 @@ module Columns : Applicative {
   product<A, B>(ma: Column<A>, mb: Column<B>): Column<(A, B)> =
     Column(ma.names + mb.names, row -> Validated.product(ma.read(row), mb.read(row)))
 
-  // ---- Columns of each type ----
-
-  // An integer.
   int(name: String): Column<Int> = column(name, "an integer") { value ->
     when (value) {
       Integer(n) -> Some(n)
@@ -31,7 +19,6 @@ module Columns : Applicative {
     }
   }
 
-  // A real number; an integer is one too.
   real(name: String): Column<Float> = column(name, "a real number") { value ->
     when (value) {
       Real(x) -> Some(x)
@@ -40,7 +27,6 @@ module Columns : Applicative {
     }
   }
 
-  // Text.
   text(name: String): Column<String> = column(name, "text") { value ->
     when (value) {
       Text(s) -> Some(s)
@@ -48,7 +34,6 @@ module Columns : Applicative {
     }
   }
 
-  // Bytes, as a blob is.
   blob(name: String): Column<Bytes> = column(name, "a blob") { value ->
     when (value) {
       Blob(b) -> Some(b)
@@ -56,7 +41,6 @@ module Columns : Applicative {
     }
   }
 
-  // A boolean, which SQLite holds as the integer 0 or 1.
   boolean(name: String): Column<Boolean> = column(name, "0 or 1") { value ->
     when (value) {
       Integer(0) -> Some(false)
@@ -65,21 +49,14 @@ module Columns : Applicative {
     }
   }
 
-  // The column's value, as it is.
   value(name: String): Column<Value> = column(name, "a value") { Some(it) }
 
-  // What the column reads, or None if each column it reads is null.
   nullable<A>(column: Column<A>): Column<Option<A>> = Column(column.names, row ->
     if (column.names.all { name -> row.get(name) == Some(Null) }) Valid(None)
     else Validated.map(column.read(row), a -> Some(a)))
 
-  // ---- Rows ----
-
-  // The value of the column of that name.
   Row.get(name: String): Option<Value> = this.columns.zip(this.values).find { column, _ -> column == name }.map { _, value -> value }
 
-  // A column read as what the function makes of its value, if anything: described, as a problem says,
-  // as what it should be.
   private column<A>(name: String, described: String, read: (Value) -> Option<A>): Column<A> = Column([name], row ->
     when (row.get(name)) {
       Some(value) -> when (read(value)) {
