@@ -25,7 +25,10 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
 }
 
 @Test @SqlEngine @Fail insertingAndQuerying() = withUsers {
-  ada = insert("INSERT INTO users (name, email, admin) VALUES (?, ?, ?)", [Text("Ada"), Text("ada@example.com"), Integer(1)])
+  ada = insert(
+    "INSERT INTO users (name, email, admin) VALUES (?, ?, ?)",
+    [Text("Ada"), Text("ada@example.com"), Integer(1)],
+  )
   bob = insert("INSERT INTO users (name) VALUES (?)", [Text("Bob")])
   assertEquals(1, ada)
   assertEquals(2, bob)
@@ -33,20 +36,34 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
     [User(1, "Ada", Some("ada@example.com"), true), User(2, "Bob", None, false)],
     queryAs(users, "SELECT * FROM users ORDER BY id"),
   )
-  assertEquals(Some(User(2, "Bob", None, false)), queryOne(users, "SELECT * FROM users WHERE name = ?", [Text("Bob")]))
+  assertEquals(
+    Some(User(2, "Bob", None, false)),
+    queryOne(users, "SELECT * FROM users WHERE name = ?", [Text("Bob")]),
+  )
   assertEquals(None, queryOne(users, "SELECT * FROM users WHERE name = ?", [Text("Cy")]))
 }
 
 @Test @SqlEngine @Fail executeSaysHowManyRowsChanged() = withUsers {
-  script("INSERT INTO users (name) VALUES ('a'); INSERT INTO users (name) VALUES ('b'); INSERT INTO users (name) VALUES ('c');")
+  script(
+    "INSERT INTO users (name) VALUES ('a'); INSERT INTO users (name) VALUES ('b'); INSERT INTO users (name) VALUES ('c');",
+  )
   assertEquals(2, execute("UPDATE users SET admin = 1 WHERE name <> ?", [Text("b")]))
-  assertEquals(["a", "c"], queryAs(text("name"), "SELECT name FROM users WHERE admin ORDER BY name"))
+  assertEquals(
+    ["a", "c"],
+    queryAs(text("name"), "SELECT name FROM users WHERE admin ORDER BY name"),
+  )
 }
 
 @Test @SqlEngine @Fail valuesKeepTheirTypes() = Databases.opening(":memory:") {
   bytes = "\u0000ÿ".encodeToBytes()
-  rows = query("SELECT ? AS n, ? AS x, ? AS s, ? AS b, ? AS z", [Integer(-7), Real(2.5), Text("€"), Blob(bytes), Null])
-  assertEquals([Row(["n", "x", "s", "b", "z"], [Integer(-7), Real(2.5), Text("€"), Blob(bytes), Null])], rows)
+  rows = query(
+    "SELECT ? AS n, ? AS x, ? AS s, ? AS b, ? AS z",
+    [Integer(-7), Real(2.5), Text("€"), Blob(bytes), Null],
+  )
+  assertEquals(
+    [Row(["n", "x", "s", "b", "z"], [Integer(-7), Real(2.5), Text("€"), Blob(bytes), Null])],
+    rows,
+  )
 }
 
 @Test @SqlEngine @Fail parametersAreNeverSql() = withUsers {
@@ -69,7 +86,10 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
 }
 
 @Test @SqlEngine @Fail whatSqliteCantDoFailsWithWhy() = withUsers {
-  assertEquals(Error("no such table: nowhere, in: SELECT * FROM nowhere"), attempt { query("SELECT * FROM nowhere") })
+  assertEquals(
+    Error("no such table: nowhere, in: SELECT * FROM nowhere"),
+    attempt { query("SELECT * FROM nowhere") },
+  )
   assertEquals(
     Error("NOT NULL constraint failed: users.name, in: INSERT INTO users (email) VALUES ('e')"),
     attempt { insert("INSERT INTO users (email) VALUES ('e')") },
@@ -85,7 +105,9 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
     (name, admin, missing)
   }
   assertEquals(
-    Error("column name is the text 'Ada', not an integer; column admin is the integer 7, not 0 or 1; there's no column missing, reading a row of: SELECT * FROM users"),
+    Error(
+      "column name is the text 'Ada', not an integer; column admin is the integer 7, not 0 or 1; there's no column missing, reading a row of: SELECT * FROM users",
+    ),
     attempt { queryAs(wrong, "SELECT * FROM users") },
   )
 }
@@ -108,5 +130,8 @@ schema: String = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL
   ) {
     assertEquals(1, rename(7, "Ada"))
   }
-  assertEquals([Statement("UPDATE users SET name = ? WHERE id = ?", [Text("Ada"), Integer(7)])], ran.value)
+  assertEquals(
+    [Statement("UPDATE users SET name = ? WHERE id = ?", [Text("Ada"), Integer(7)])],
+    ran.value,
+  )
 }

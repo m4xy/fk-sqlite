@@ -7,7 +7,13 @@ module Sqlite : SqlEngine {
     when (execute(connection, statement.sql, statement.parameters.map { datumOf(it) })) {
       Ok(result) -> {
         (columns, rows, changes, lastInsertId) = result
-        Ok(Executed(rows.map { values -> Row(columns, values.map { valueOf(it) }) }, changes, lastInsertId))
+        Ok(
+          Executed(
+            rows.map { values -> Row(columns, values.map { valueOf(it) }) },
+            changes,
+            lastInsertId,
+          ),
+        )
       }
       Error(message) -> Error(SqlError(message, statement.sql))
     }
@@ -43,7 +49,9 @@ module Sqlite : SqlEngine {
 
   private external kindOf(d: Datum): Int =
     "(function Sqlite3.Data.INT _ -> 1 | Sqlite3.Data.FLOAT _ -> 2 | Sqlite3.Data.TEXT _ -> 3 | Sqlite3.Data.BLOB _ -> 4 | _ -> 0) d"
-  private external integerIn(d: Datum): Int = "(function Sqlite3.Data.INT n -> Int64.to_int n | _ -> 0) d"
+  private external integerIn(
+    d: Datum,
+  ): Int = "(function Sqlite3.Data.INT n -> Int64.to_int n | _ -> 0) d"
   private external realIn(d: Datum): Float = "(function Sqlite3.Data.FLOAT x -> x | _ -> 0.0) d"
   private external textIn(d: Datum): String = "(function Sqlite3.Data.TEXT s -> s | _ -> \"\") d"
   private external blobIn(d: Datum): Bytes = "(function Sqlite3.Data.BLOB b -> b | _ -> \"\") d"
@@ -51,7 +59,9 @@ module Sqlite : SqlEngine {
   private external openDatabase(path: String): Result<Connection, String> =
     "(fun p -> try Ok (Sqlite3.db_open p) with Sqlite3.Error e -> Error e) path"
 
-  private external closeDatabase(connection: Connection): Unit = "(fun db -> ignore (Sqlite3.db_close db)) connection"
+  private external closeDatabase(
+    connection: Connection,
+  ): Unit = "(fun db -> ignore (Sqlite3.db_close db)) connection"
 
   private external execute(connection: Connection, sql: String, parameters: List<Datum>): Result<(List<String>, List<List<Datum>>, Int, Int), String> =
     "(fun db sql params -> match Sqlite3.prepare db sql with exception (Sqlite3.Error _ | Sqlite3.SqliteError _) -> Error (Sqlite3.errmsg db) | stmt -> let finish r = ignore (Sqlite3.finalize stmt); r in if Sqlite3.bind_values stmt params <> Sqlite3.Rc.OK then finish (Error (Sqlite3.errmsg db)) else let names = List.init (Sqlite3.column_count stmt) (Sqlite3.column_name stmt) in let rec rows acc = match Sqlite3.step stmt with Sqlite3.Rc.ROW -> rows (Array.to_list (Sqlite3.row_data stmt) :: acc) | Sqlite3.Rc.DONE -> Ok (List.rev acc) | _ -> Error (Sqlite3.errmsg db) in finish (match rows [] with Ok rs -> Ok (names, rs, Sqlite3.changes db, Int64.to_int (Sqlite3.last_insert_rowid db)) | Error e -> Error e)) connection sql parameters"
